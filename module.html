@@ -165,7 +165,7 @@ header nav .btn.icon{height:24px;width:24px;min-width:24px;padding:0;font-size:1
 <header class="grid12">
   <h1>TIKRAR<small>Beirut Lantern Generator</small></h1>
   <span class="sub">porcelain modules 60 × 60 mm · 40 mm walls · houses, towers and city blocks · 1860–1925 and modernist openings</span>
-  <nav><span id="ver" title="Version: if this is not the latest, reload the page">v 30.10 · 12:25</span><a href="proposals.html">Proposals</a><button class="btn icon" id="gridBtn" type="button" aria-pressed="false" title="Show the grid (G)">#</button>
+  <nav><span id="ver" title="Version: if this is not the latest, reload the page">v 30.10 · 12:35</span><a href="proposals.html">Proposals</a><button class="btn icon" id="gridBtn" type="button" aria-pressed="false" title="Show the grid (G)">#</button>
   <button class="btn icon" id="themeBtn" type="button" aria-label="Toggle colour theme">◐</button></nav>
 </header>
 
@@ -187,7 +187,7 @@ header nav .btn.icon{height:24px;width:24px;min-width:24px;padding:0;font-size:1
       <h2>City block <span class="meta" id="villageMeta"></span></h2>
       <div class="blist" id="bList"></div>
       <div class="f"><span class="lbl">Select</span><div class="v"><div class="seg"><button type="button" id="selAll">All</button><button type="button" id="selNone">Clear</button></div><span class="hint">shift or ⌘ click to pick several</span></div></div>
-      <div class="f"><span class="lbl">Add</span><div class="v"><select id="addKind" aria-label="Building to add"><option value="central">Central-hall house</option><option value="liwan">Līwān house</option><option value="photo">Arches &amp; keyholes</option><option value="stair">Stair tower</option><option value="modernRow">Modernist block</option><option value="modernTower">Modernist tower</option><option value="random">Random</option><optgroup label="Landmarks, true size at 1:75"><option value="holiday">Holiday Inn · 26 storeys</option><option value="gefinor">Gefinor Center · 15 storeys</option><option value="edl">Électricité du Liban · 15 storeys</option><option value="saroulla">Saroulla building · 10 storeys</option><option value="egg">The Egg · cinema</option><option value="museum">National Museum</option></optgroup></select><button class="btn" type="button" id="addBtn">Add</button></div></div>
+      <div class="f"><span class="lbl">Add</span><div class="v"><select id="addKind" aria-label="Building to add"><option value="central">Central-hall house</option><option value="liwan">Līwān house</option><option value="photo">Arches &amp; keyholes</option><option value="stair">Stair tower</option><option value="modernRow">Modernist block</option><option value="modernTower">Modernist tower</option><option value="court">Public court (flat tray)</option><option value="random">Random</option><optgroup label="Landmarks, true size at 1:75"><option value="holiday">Holiday Inn · 26 storeys</option><option value="gefinor">Gefinor Center · 15 storeys</option><option value="edl">Électricité du Liban · 15 storeys</option><option value="saroulla">Saroulla building · 10 storeys</option><option value="egg">The Egg · cinema</option><option value="museum">National Museum</option></optgroup></select><button class="btn" type="button" id="addBtn">Add</button></div></div>
       <div class="f"><span class="lbl">Move</span><div class="v"><div class="seg" id="moveSeg"><button type="button" data-mv="-1,0" aria-label="Move left">←</button><button type="button" data-mv="1,0" aria-label="Move right">→</button><button type="button" data-mv="0,-1" aria-label="Move back">↑</button><button type="button" data-mv="0,1" aria-label="Move forward">↓</button><button type="button" id="rotBtn" aria-label="Turn 90°">⟳</button></div></div></div>
       <div class="f"><span class="lbl">Edit</span><div class="v"><div class="seg"><button type="button" id="dupB">Duplicate</button><button type="button" id="delB">Remove</button></div></div></div>
       <div class="f"><span class="lbl">Buildings</span><div class="v"><div class="seg" id="countSeg" title="Grow or shrink the city block (1 to 120): type a number or use − / +; new buildings take the next block slots"><button type="button" data-d="-1" aria-label="One building fewer">−</button><input class="cnt" id="countV" type="number" min="1" max="120" step="1" inputmode="numeric" aria-label="Number of buildings"><button type="button" data-d="1" aria-label="One building more">+</button></div></div></div>
@@ -302,6 +302,8 @@ const KINDS={
       if(f==="front")return [wall("ribbon",{style:"two"}),wall("claustra",{style:"squares"}),wall("fins")][c];
       if(f==="back")return l?wall("ribbon"):wall("picture");
       return f==="left"?wall("portholes",{style:"tower"}):wall("glassblock");}),
+  /* public court: a flat porcelain tray (no walls, no roof) for a square, a courtyard or a plot left open */
+  court:()=>make("Public court","modern",2,2,1,"none",()=>INNER(),{court:true,candles:[false],plates:[true]}),
   modernTower:()=>make("Modernist tower","modern",1,1,6,"modern",(c,r,l,f)=>{
       if(l===0)return f==="front"?wall("pilotis"):f==="back"?wall("picture"):wall("glassblock");
       if(f==="front")return [null,wall("eggcrate"),wall("ribbon"),wall("claustra",{style:"crosses"}),wall("eggcrate"),wall("ribbon",{style:"two"})][l];
@@ -525,7 +527,9 @@ const PALETTES={
   green:{name:"Green and cream",accent:0x1e5a40,walls:"cream",accents:["green","ochre"],plates:"green",roof:"green"},
   gray:{name:"Grayscale",accent:0x5e5e5c,walls:"white",accents:["pale","mid","charcoal"],plates:"charcoal",roof:"mid"},
   white:{name:"All white",accent:0xe2231a,walls:"white",accents:["white"],plates:"white",roof:"white"}};
-function applyPalette(b,key,accentShare){const p=PALETTES[key];if(b.finish==="unglazed"||!b.finish)b.finish="glazed";b.glazeCol=p.walls;b.plateCol=p.plates;b.roofCol=p.roof;b.palette=key;
+function applyPalette(b,key,accentShare){const p=PALETTES[key];if(b.finish==="unglazed"||!b.finish)b.finish="glazed";b.glazeCol=p.walls;b.plateCol=p.plates;b.palette=key;
+  /* roofs vary with the palette, building by building: white about two times in three, otherwise the palette's roof colour or one of its accents */
+  b.roofCol=Math.random()<0.65?"white":pick([p.roof,p.roof,...p.accents]);
   const share=accentShare===undefined?0.3:accentShare;Object.keys(b.mods).forEach(k=>{if(Math.random()<share)b.mods[k].col=pick(p.accents);else delete b.mods[k].col;});}
 /* the site accent follows the palette in use: the last palette applied (or the city's most common one) gives the
    colour of highlights, active buttons, the grid overlay, the selection outline and the block lines */
@@ -535,8 +539,8 @@ function applyAccent(){const h=accentHex(),c=new THREE.Color(h),dark=getComputed
   root.style.setProperty("--terra","#"+ui.getHexString());root.style.setProperty("--terra-soft","#"+ui.clone().lerp(new THREE.Color(dark?0x0e0e0e:0xffffff),0.88).getHexString());
   [MAT.sel,MAT.line,MAT.band].forEach(m=>m.color.set(h));need();}
 const usePal=k=>{S.accentPal=k;};
-/* a palette picked at random: roofs come out white about two times in three, the palette's roof colour otherwise */
-function randPal(b,key){applyPalette(b,key);if(Math.random()<0.65)b.roofCol="white";}
+/* a palette picked at random (roofs vary as in applyPalette) */
+function randPal(b,key){applyPalette(b,key);}
 const hex=c=>"#"+c.toString(16).padStart(6,"0");
 const MATS={};
 let grain=null;function grainTex(){if(grain)return grain;const c=document.createElement("canvas");c.width=c.height=256;const g=c.getContext("2d"),im=g.createImageData(256,256);
@@ -720,6 +724,7 @@ function modernRoof(b){const g=new THREE.Group(),hw=(perMod(b)?1:b.cols)*W/2,hd=
 function buildBuilding(bi,gap,lightBudget){
   const b=S.buildings[bi],g=new THREE.Group(),{ys,top}=levelY(b,gap),hw=b.cols*W/2,hd=b.deep*W/2;
   g.position.set(b.x,0,b.z);g.rotation.y=-b.rot*Math.PI/2;
+  if(b.court)return courtOf(b,bi,g,hw,hd);
   const mx=c=>(c-(b.cols-1)/2)*(W+gap*0.4),mz=r=>-(r-(b.deep-1)/2)*(W+gap*0.4);
   for(let l=0;l<b.levels;l++){
     /* plate (or base) under the level: one piece for the whole floor, a vent over every module */
@@ -742,6 +747,14 @@ function buildBuilding(bi,gap,lightBudget){
   if(isSel(bi)){const pts=[[-hw-4,-hd-4],[hw+4,-hd-4],[hw+4,hd+4],[-hw-4,hd+4]].map(([x,z])=>new THREE.Vector3(x,0.6,z));const ln=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts),MAT.sel);g.add(ln);}
   return g;}
 const flames=[];
+/* public court: a 6 mm porcelain tray with a 3 mm rounded rim (5 mm proud) and a round basin in the middle, one cast piece */
+const COURT_T=6,COURT_RIM=5;
+function courtOf(b,bi,g,hw,hd){const mat=plateMat(b),r=radOf(b),ri=Math.max(0.5,r-3);
+  const base=soft(rsq(-hw,-hd,hw,hd,r),[],COURT_T,mat,0,2.4);base.userData={bi,k:"0:0:0",fname:"front"};pickable.push(base);g.add(base);
+  g.add(soft(rsq(-hw,-hd,hw,hd,r),[rsq(-hw+3,-hd+3,hw-3,hd-3,ri)],COURT_RIM,mat,COURT_T-0.5,1.2));
+  const bs=soft(circle(14),[circle(10.5)],7,bodyMat(b),COURT_T-0.5,1.2);g.add(bs);
+  if(isSel(bi)){const pts=[[-hw-4,-hd-4],[hw+4,-hd-4],[hw+4,hd+4],[-hw-4,hd+4]].map(([x,z])=>new THREE.Vector3(x,0.6,z));g.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts),MAT.sel));}
+  return g;}
 /* a fixed pool of candle lights, so editing never changes the light count (which would recompile every shader and stutter) */
 const LPOOL=Array.from({length:MAX_LIGHTS},(_,i)=>{const L=new THREE.PointLight(0xffa04f,0,280,2);L.castShadow=i<SHADOW_LIGHTS;L.shadow.mapSize.set(256,256);L.shadow.radius=3;L.shadow.bias=-0.003;
   L.shadow.camera.near=2;L.position.set(0,-500,0);L.userData.base=0;scene.add(L);return L;});
@@ -1019,6 +1032,9 @@ function randAll(){const n=Math.max(1,Math.min(MAX_B,S.buildings.length)),list=[
   /* landmarks on: about one per 25 buildings (at least one), each different, each on its own block */
   if(nLM){const ks=LANDMARKS.slice().sort(()=>Math.random()-0.5).slice(0,Math.min(nLM,LANDMARKS.length,list.length));
     ks.forEach(k=>{const b=KINDS[k]();randPal(b,keep||Math.random()<0.7?pal:pick(Object.keys(PALETTES)));list.splice(Math.floor(Math.random()*list.length),1,b);});}
+  /* public courts: about one in ten (at least one from six buildings up), in place of ordinary buildings, never of a landmark */
+  {const nc=n>=6?Math.max(1,Math.round(n/10)):0;for(let i=0;i<nc;i++){const idx=list.map((b,j)=>j).filter(j=>!isLM(list[j])&&!list[j].court);if(!idx.length)break;
+     const j=pick(idx),b=KINDS.court();randPal(b,keep||Math.random()<0.7?pal:pick(Object.keys(PALETTES)));list[j]=b;}}
   if(S.vary)varyStreets();S.mix=true;rollBlocks();S.buildings=gridLayout(list);S.selB=0;S.multi=[];S.sel="0:0:0";}
 on("randVillage","click",()=>{randAll();renderUI();});   /* the camera stays exactly where it is (Reset view refits) */
 on("gapSeg","click",e=>{const x=e.target.closest("button");if(!x||!x.dataset.d)return;S.gaps=S.gaps||[];
