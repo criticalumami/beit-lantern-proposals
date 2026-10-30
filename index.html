@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Cache-Control" content="no-cache, must-revalidate"><meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>TIKRAR · Beirut Lantern Generator</title>
 <meta name="description" content="Design porcelain lanterns from 60 × 60 mm modules with 40 mm walls: houses and towers, whole city blocks, 1860–1925 and modernist openings, candles and plates per level, with dimensioned PDF sheets.">
@@ -27,6 +28,7 @@ header .sub{grid-column:8/11;font-size:11px;line-height:16px;color:var(--ink)}
 header nav{grid-column:11/13;justify-self:end;display:flex;gap:var(--u);align-items:center}
 header nav a{color:var(--ink);font-size:11px;font-weight:700;text-decoration:none;text-transform:uppercase;letter-spacing:.06em}
 header nav a:hover{color:var(--terra)}
+#ver{font-size:10px;color:var(--muted);margin-right:8px;white-space:nowrap}
 .btn{height:var(--ctl);border:1px solid var(--ink);background:transparent;color:var(--ink);font:500 13px/16px var(--sans);padding:0 12px;border-radius:0;cursor:pointer;white-space:nowrap}
 .btn:hover{background:var(--ink);color:var(--bg)}
 .btn.primary{background:var(--ink);color:var(--bg)}
@@ -163,7 +165,7 @@ header nav .btn.icon{height:24px;width:24px;min-width:24px;padding:0;font-size:1
 <header class="grid12">
   <h1>TIKRAR<small>Beirut Lantern Generator</small></h1>
   <span class="sub">porcelain modules 60 × 60 mm · 40 mm walls · houses, towers and city blocks · 1860–1925 and modernist openings</span>
-  <nav><a href="proposals.html">Proposals</a><button class="btn icon" id="gridBtn" type="button" aria-pressed="false" title="Show the grid (G)">#</button>
+  <nav><span id="ver" title="Version: if this is not the latest, reload the page">v 30.10 · 12:25</span><a href="proposals.html">Proposals</a><button class="btn icon" id="gridBtn" type="button" aria-pressed="false" title="Show the grid (G)">#</button>
   <button class="btn icon" id="themeBtn" type="button" aria-label="Toggle colour theme">◐</button></nav>
 </header>
 
