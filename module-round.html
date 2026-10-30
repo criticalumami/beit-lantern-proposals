@@ -634,8 +634,16 @@ const ANG={front:0,right:Math.PI/2,back:Math.PI,left:-Math.PI/2};
 const circle=(r,cx,cy,n)=>Array.from({length:n||20},(_,k)=>[(cx||0)+r*Math.cos(k/(n||20)*2*Math.PI),(cy||0)+r*Math.sin(k/(n||20)*2*Math.PI)]);
 /* ceramic softness: every slab and wall gets a rounded edge (BV mm, two segments) that stays inside its true outline,
    so sizes, fits and openings are unchanged at their narrowest; openings flare a little at both faces */
-const BV=1.4;
-/* how round a wall's edges can be: the face bevel eats bv from both sides of every bar, so keep ≥ 0.8 mm of flat bar at the face
+const BV=0.9;
+/* openings get slightly rounded corners (r mm), like a hand-finished slip-cast piece: only hole area is taken off, so every bar keeps its width */
+function fillet(pts,r){const n=pts.length,o=[];for(let i=0;i<n;i++){const a=pts[(i+n-1)%n],b=pts[i],c=pts[(i+1)%n],
+    ux=a[0]-b[0],uy=a[1]-b[1],vx=c[0]-b[0],vy=c[1]-b[1],lu=Math.hypot(ux,uy),lv=Math.hypot(vx,vy);
+    if(lu<1e-6||lv<1e-6){o.push(b);continue;}const th=Math.acos(Math.max(-1,Math.min(1,(ux*vx+uy*vy)/(lu*lv))));
+    if(th>2.8){o.push(b);continue;}const d=Math.min(r/Math.tan(th/2),lu*0.45,lv*0.45),p0=[b[0]+ux/lu*d,b[1]+uy/lu*d],p1=[b[0]+vx/lv*d,b[1]+vy/lv*d];
+    for(let k=0;k<=4;k++){const t=k/4,q=(1-t)*(1-t),m=2*t*(1-t),w=t*t;o.push([q*p0[0]+m*b[0]+w*p1[0],q*p0[1]+m*b[1]+w*p1[1]]);}}
+  return o;}
+/* slip-cast softness, after the owner's reference (matte porcelain houses): soft outer edges, openings crisp with only a slight round (BV).
+   How round a wall's edges can be: the face bevel eats bv from both sides of every bar, so keep ≥ 0.8 mm of flat bar at the face
    (bounding-box gaps between openings and to the top and bottom edges: never more than the true gap) */
 function wallBv(holes){let g=99;const bb=holes.map(h=>{let a=[1e9,1e9,-1e9,-1e9];h.forEach(([x,y])=>{a=[Math.min(a[0],x),Math.min(a[1],y),Math.max(a[2],x),Math.max(a[3],y)];});return a;});
   bb.forEach((a,i)=>{g=Math.min(g,a[1],H-a[3],a[0],W-a[2]);for(let j=i+1;j<bb.length;j++){const c=bb[j];g=Math.min(g,Math.max(c[0]-a[2],a[0]-c[2],c[1]-a[3],a[1]-c[3]));}});
@@ -656,12 +664,12 @@ function cornerPieces(b,k){const g=new THREE.Group(),R=Math.min(radOf(b),W/2-1);
     for(let i=0;i<=10;i++){const a=i/10*Math.PI/2;pts.push([cx+R*Math.cos(a),cz+R*Math.sin(a)]);}
     if(R>T+0.01)for(let i=10;i>=0;i--){const a=i/10*Math.PI/2;pts.push([cx+(R-T)*Math.cos(a),cz+(R-T)*Math.sin(a)]);}
     else{pts.push([h-R,h-T],[h-T,h-T],[h-T,h-R]);}
-    const m=soft(pts.map(([x,z])=>[x*sx,-z*sz]),[],H,mat,0);g.add(m);});
+    const m=soft(pts.map(([x,z])=>[x*sx,-z*sz]),[],H,mat,0,1.4);g.add(m);});
   return g;}
 function buildWall(bi,k,fname){
   const o=B.build(S.buildings[bi].mods[k][fname]),g=new THREE.Group();g.rotation.y=ANG[fname];
   const Rr=Math.min(radOf(S.buildings[bi]),W/2-1);
-  const hp=o.holes.map(h=>h.p),bv=wallBv(hp),e=Rr>0.01?Math.min(bv,Rr):0,w=softExtrude([[Rr-e,0],[W-Rr+e,0],[W-Rr+e,H],[Rr-e,H]],hp,T,modMat(S.buildings[bi],k),bv);w.position.set(-W/2,0,W/2-T);w.userData={bi,k,fname};pickable.push(w);g.add(w);
+  const hp=o.holes.map(h=>fillet(h.p,0.8)),bv=wallBv(hp),e=Rr>0.01?Math.min(bv,Rr):0,w=softExtrude([[Rr-e,0],[W-Rr+e,0],[W-Rr+e,H],[Rr-e,H]],hp,T,modMat(S.buildings[bi],k),bv);w.position.set(-W/2,0,W/2-T);w.userData={bi,k,fname};pickable.push(w);g.add(w);
   return g;}
 const plateT=l=>l===0?BASE_T:PLATE_T;
 function levelY(b,gap){const ys=[];let y=0;for(let l=0;l<b.levels;l++){if(b.plates[l])y+=plateT(l)+gap*0.5;ys.push(y);y+=H+gap;}return {ys,top:y-gap};}
@@ -696,7 +704,7 @@ function buildBuilding(bi,gap,lightBudget){
   for(let l=0;l<b.levels;l++){
     /* plate (or base) under the level: one piece for the whole floor, a vent over every module */
     if(b.plates[l]){const vents=[];for(let c=0;c<b.cols;c++)for(let r=0;r<b.deep;r++)vents.push(circle(4,mx(c),-mz(r)));
-      const p=soft(rsq(-hw,-hd,hw,hd,radOf(b)),l===0?[]:vents,plateT(l),plateMat(b),ys[l]-plateT(l)-gap*0.5,1.8);g.add(p);
+      const p=soft(rsq(-hw,-hd,hw,hd,radOf(b)),l===0?[]:vents,plateT(l),plateMat(b),ys[l]-plateT(l)-gap*0.5,l===0?2.8:1.9);g.add(p);
       if(l===0){const f=flat(rsq(-hw-0.05,-hd-0.05,hw+0.05,hd+0.05,radOf(b)),[],1.2,footMat(b),ys[0]-plateT(0)-gap*0.5);g.add(f);}}
     for(let c=0;c<b.cols;c++)for(let r=0;r<b.deep;r++){const k=c+":"+r+":"+l;if(!alive(b,k))continue;const mg=new THREE.Group();mg.position.set(mx(c),ys[l],mz(r));FACES.forEach(f=>mg.add(buildWall(bi,k,f)));mg.add(cornerPieces(b,k));if(b.candles[l]&&b.plates[l])mg.traverse(o=>o.userData.lit=true);g.add(mg);
       if(b.candles[l]&&b.plates[l]){const tea=new THREE.Mesh(new THREE.CylinderGeometry(19,19,8,24),MAT.tea);tea.position.set(mx(c),ys[l]+4,mz(r));g.add(tea);
