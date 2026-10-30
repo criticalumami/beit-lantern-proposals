@@ -139,8 +139,14 @@ select{height:var(--ctl);background:var(--field);border:0;border-radius:0;paddin
 body.showgrid #gridOverlay{display:grid}
 #gridOverlay i{background:color-mix(in srgb,var(--terra) 7%,transparent);border-left:1px solid color-mix(in srgb,var(--terra) 25%,transparent);border-right:1px solid color-mix(in srgb,var(--terra) 25%,transparent)}
 body.showgrid #gridOverlay{background:repeating-linear-gradient(to bottom,transparent 0 7px,rgba(0,140,255,.12) 7px 8px)}
+/* slim top bar: one row, wordmark and subtitle side by side, so the 3D view gets the height */
+header.grid12{align-items:center;padding-top:8px;padding-bottom:8px;row-gap:0}
+header h1,header h1{font-size:22px;line-height:32px;letter-spacing:-.02em;white-space:nowrap}
+header h1 small{display:inline;margin:0 0 0 12px;vertical-align:2px}
+header .sub{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted)}
+@media (max-width:1100px){header .sub{display:none}header h1{grid-column:1/10}header nav{grid-column:10/13}}
 /* phones: title and nav share the first row, the 3D view takes most of the screen, the toolbar is one row you swipe sideways */
-@media (max-width:760px){header h1{grid-column:1/8;grid-row:1}header nav{grid-column:8/13;grid-row:1;align-self:start}header .sub{grid-column:1/-1;grid-row:2}
+@media (max-width:760px){header h1{grid-column:1/9;grid-row:1;font-size:20px}header h1 small{display:block;margin:0;font-size:9px;line-height:12px;vertical-align:0}header nav{grid-column:9/13;grid-row:1;align-self:center}header .sub{display:none}
   .layout>.viewer{aspect-ratio:auto;height:min(64svh,560px);min-height:340px}
   .layout>.viewer{overflow:visible;margin-bottom:var(--ctl)}.vbar{top:100%;bottom:auto;background:#111;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}.vbar::-webkit-scrollbar{display:none}.vbar .grp{flex:none}
   .tag{padding:8px 12px;font-size:10px;line-height:14px}
@@ -639,24 +645,44 @@ function extrude(outer,holes,depth,mat){const s=shapeOf(outer);holes.forEach(h=>
   const m=new THREE.Mesh(new THREE.ExtrudeGeometry(s,{depth,bevelEnabled:false,curveSegments:8}),mat);m.castShadow=true;m.receiveShadow=true;return m;}
 const ANG={front:0,right:Math.PI/2,back:Math.PI,left:-Math.PI/2};
 const circle=(r,cx,cy,n)=>Array.from({length:n||20},(_,k)=>[(cx||0)+r*Math.cos(k/(n||20)*2*Math.PI),(cy||0)+r*Math.sin(k/(n||20)*2*Math.PI)]);
+/* ceramic softness: every slab and wall gets a rounded edge (BV mm, two segments) that stays inside its true outline,
+   so sizes, fits and openings are unchanged at their narrowest; openings flare a little at both faces */
+const BV=0.9;
+/* openings get slightly rounded corners (r mm), like a hand-finished slip-cast piece: only hole area is taken off, so every bar keeps its width */
+function fillet(pts,r){const n=pts.length,o=[];for(let i=0;i<n;i++){const a=pts[(i+n-1)%n],b=pts[i],c=pts[(i+1)%n],
+    ux=a[0]-b[0],uy=a[1]-b[1],vx=c[0]-b[0],vy=c[1]-b[1],lu=Math.hypot(ux,uy),lv=Math.hypot(vx,vy);
+    if(lu<1e-6||lv<1e-6){o.push(b);continue;}const th=Math.acos(Math.max(-1,Math.min(1,(ux*vx+uy*vy)/(lu*lv))));
+    if(th>2.8){o.push(b);continue;}const d=Math.min(r/Math.tan(th/2),lu*0.45,lv*0.45),p0=[b[0]+ux/lu*d,b[1]+uy/lu*d],p1=[b[0]+vx/lv*d,b[1]+vy/lv*d];
+    for(let k=0;k<=4;k++){const t=k/4,q=(1-t)*(1-t),m=2*t*(1-t),w=t*t;o.push([q*p0[0]+m*b[0]+w*p1[0],q*p0[1]+m*b[1]+w*p1[1]]);}}
+  return o;}
+/* slip-cast softness, after the owner's reference (matte porcelain houses): soft outer edges, openings crisp with only a slight round (BV).
+   How round a wall's edges can be: the face bevel eats bv from both sides of every bar, so keep ≥ 0.8 mm of flat bar at the face
+   (bounding-box gaps between openings and to the top and bottom edges: never more than the true gap) */
+function wallBv(holes){let g=99;const bb=holes.map(h=>{let a=[1e9,1e9,-1e9,-1e9];h.forEach(([x,y])=>{a=[Math.min(a[0],x),Math.min(a[1],y),Math.max(a[2],x),Math.max(a[3],y)];});return a;});
+  bb.forEach((a,i)=>{g=Math.min(g,a[1],H-a[3],a[0],W-a[2]);for(let j=i+1;j<bb.length;j++){const c=bb[j];g=Math.min(g,Math.max(c[0]-a[2],a[0]-c[2],c[1]-a[3],a[1]-c[3]));}});
+  return Math.max(0.5,Math.min(BV,(g-0.8)/2));}
+function softExtrude(outer,holes,depth,mat,bv){bv=Math.min(bv===undefined?BV:bv,depth/2-0.05);const s=shapeOf(outer);holes.forEach(h=>s.holes.push(new THREE.Path(h.map(([x,y])=>new THREE.Vector2(x,y)))));
+  const geo=new THREE.ExtrudeGeometry(s,{depth:depth-2*bv,bevelEnabled:true,bevelThickness:bv,bevelSize:bv,bevelOffset:-bv,bevelSegments:2,curveSegments:8});geo.translate(0,0,bv);
+  const m=new THREE.Mesh(geo,mat);m.castShadow=true;m.receiveShadow=true;return m;}
+function soft(outer,holes,depth,mat,y,bv){const m=softExtrude(outer,holes,depth,mat,bv);m.rotation.x=-Math.PI/2;m.position.y=y;return m;}
 function flat(outer,holes,depth,mat,y){const m=extrude(outer,holes,depth,mat);m.rotation.x=-Math.PI/2;m.position.y=y;return m;}
 const sq=(x0,z0,x1,z1)=>[[x0,z0],[x1,z0],[x1,z1],[x0,z1]];
 /* rectangle with rounded corners (radius r), as a polygon */
 function rsq(x0,z0,x1,z1,r){if(r<=0.01)return sq(x0,z0,x1,z1);const o=[],arc=(cx,cz,a0)=>{for(let k=0;k<=6;k++){const a=a0+k/6*Math.PI/2;o.push([cx+r*Math.cos(a),cz+r*Math.sin(a)]);}};
   arc(x1-r,z0+r,-Math.PI/2);arc(x1-r,z1-r,0);arc(x0+r,z1-r,Math.PI/2);arc(x0+r,z0+r,Math.PI);return o;}
-const radOf=b=>b.radius===undefined?3:b.radius;
+const radOf=b=>b.radius===undefined?4:b.radius;
 /* the four rounded vertical edges of a module: a quarter ring of outer radius R (solid where R ≤ wall thickness) */
 function cornerPieces(b,k){const g=new THREE.Group(),R=Math.min(radOf(b),W/2-1);if(R<=0.01)return g;const h=W/2,mat=modMat(b,k);
   [[1,1],[1,-1],[-1,-1],[-1,1]].forEach(([sx,sz])=>{const pts=[],cx=h-R,cz=h-R;
     for(let i=0;i<=10;i++){const a=i/10*Math.PI/2;pts.push([cx+R*Math.cos(a),cz+R*Math.sin(a)]);}
     if(R>T+0.01)for(let i=10;i>=0;i--){const a=i/10*Math.PI/2;pts.push([cx+(R-T)*Math.cos(a),cz+(R-T)*Math.sin(a)]);}
     else{pts.push([h-R,h-T],[h-T,h-T],[h-T,h-R]);}
-    const m=flat(pts.map(([x,z])=>[x*sx,-z*sz]),[],H,mat,0);g.add(m);});
+    const m=soft(pts.map(([x,z])=>[x*sx,-z*sz]),[],H,mat,0,1.4);g.add(m);});
   return g;}
 function buildWall(bi,k,fname){
   const o=B.build(S.buildings[bi].mods[k][fname]),g=new THREE.Group();g.rotation.y=ANG[fname];
   const Rr=Math.min(radOf(S.buildings[bi]),W/2-1);
-  const w=extrude([[Rr,0],[W-Rr,0],[W-Rr,H],[Rr,H]],o.holes.map(h=>h.p),T,modMat(S.buildings[bi],k));w.position.set(-W/2,0,W/2-T);w.userData={bi,k,fname};pickable.push(w);g.add(w);
+  const hp=o.holes.map(h=>fillet(h.p,0.8)),bv=wallBv(hp),e=Rr>0.01?Math.min(bv,Rr):0,w=softExtrude([[Rr-e,0],[W-Rr+e,0],[W-Rr+e,H],[Rr-e,H]],hp,T,modMat(S.buildings[bi],k),bv);w.position.set(-W/2,0,W/2-T);w.userData={bi,k,fname};pickable.push(w);g.add(w);
   return g;}
 const plateT=l=>l===0?BASE_T:PLATE_T;
 function levelY(b,gap){const ys=[];let y=0;for(let l=0;l<b.levels;l++){if(b.plates[l])y+=plateT(l)+gap*0.5;ys.push(y);y+=H+gap;}return {ys,top:y-gap};}
@@ -671,14 +697,19 @@ function outward(geo){const p=geo.attributes.position.array,u=geo.attributes.uv&
     if(az*bx-ax*bz<0){for(let k=0;k<3;k++){const q=p[t+3+k];p[t+3+k]=p[t+6+k];p[t+6+k]=q;}if(u){const i=t/3*2;for(let k=0;k<2;k++){const q=u[i+2+k];u[i+2+k]=u[i+4+k];u[i+4+k]=q;}}}}
   geo.attributes.position.needsUpdate=true;geo.computeVertexNormals();}
 function slantRoof(b){const g=new THREE.Group(),hw=(perMod(b)?1:b.cols)*W/2,hd=(perMod(b)?1:b.deep)*W/2,a=roofRun(b),rise=a*Math.tan(b.pitch*Math.PI/180),fas=2.5,mat=roofMat(b);
-  g.add(flat(rsq(-hw,-hd,hw,hd,radOf(b)),[sq(-hw+T+0.2,-hd+T+0.2,hw-T-0.2,hd-T-0.2)],fas,mat,0));
-  const tw=hw-a,td=hd-a,v=[],y1=fas,y2=y1+rise,C=sq(-hw,-hd,hw,hd),Ct=sq(-tw,-td,tw,td);
-  for(let k=0;k<4;k++){const a=C[k],c=C[(k+1)%4],at=Ct[k],ct=Ct[(k+1)%4];v.push(a[0],y1,a[1],c[0],y1,c[1],ct[0],y2,ct[1], a[0],y1,a[1],ct[0],y2,ct[1],at[0],y2,at[1]);}
-  const geo=new THREE.BufferGeometry();geo.setAttribute("position",new THREE.Float32BufferAttribute(v,3));geo.setAttribute("uv",new THREE.Float32BufferAttribute(v.filter((_,i)=>i%3!==1),2));geo.computeVertexNormals();
-  outward(geo);const m=new THREE.Mesh(geo,mat);m.castShadow=true;m.receiveShadow=true;g.add(m);
-  g.add(flat(sq(-tw,-td,tw,td),[circle(4)],1.5,mat,y2-1.5));return g;}
+  g.add(soft(rsq(-hw,-hd,hw,hd,radOf(b)),[sq(-hw+T+0.2,-hd+T+0.2,hw-T-0.2,hd-T-0.2)],fas,mat,0,1.2));
+  /* rounded hips: rings of rounded rectangles from the eaves to the ridge, joined with shared (smooth) normals */
+  const tw=hw-a,td=hd-a,y1=fas,y2=y1+rise,rb=Math.max(radOf(b),6),rt=Math.min(tw,td,3),
+    rings=[[hw-0.6,hd-0.6,rb,y1-0.4],[hw,hd,rb,y1+0.5],[tw+0.8,td+0.8,rt+0.8,y2-1.9],[tw,td,rt,y2-1.5]].map(([x,z,r,y])=>rsq(-x,-z,x,z,Math.min(r,x-0.01,z-0.01)).map(([px,pz])=>[px,y,pz]));
+  const n=rings[0].length,pos=[],idx=[];rings.forEach(r=>r.forEach(p=>pos.push(...p)));
+  for(let i=0;i<rings.length-1;i++)for(let j=0;j<n;j++){const a0=i*n+j,a1=i*n+(j+1)%n,b0=a0+n,b1=a1+n;idx.push(a0,b0,a1,a1,b0,b1);}
+  let geo=new THREE.BufferGeometry();geo.setAttribute("position",new THREE.Float32BufferAttribute(pos,3));geo.setAttribute("uv",new THREE.Float32BufferAttribute(pos.filter((_,i)=>i%3!==1),2));geo.setIndex(idx);geo.computeVertexNormals();
+  {const nm=geo.attributes.normal,p=rings[1][0];if(nm.getX(n)*p[0]+nm.getZ(n)*p[2]<0){for(let i=0;i<idx.length;i+=3){const q=idx[i+1];idx[i+1]=idx[i+2];idx[i+2]=q;}geo.setIndex(idx);geo.computeVertexNormals();}}   /* face the sky */
+  geo=geo.toNonIndexed();
+  const m=new THREE.Mesh(geo,mat);m.castShadow=true;m.receiveShadow=true;g.add(m);
+  g.add(soft(rsq(-tw,-td,tw,td,rt),[circle(4)],1.5,mat,y2-1.5,0.7));return g;}
 function modernRoof(b){const g=new THREE.Group(),hw=(perMod(b)?1:b.cols)*W/2,hd=(perMod(b)?1:b.deep)*W/2,mat=roofMat(b);
-  g.add(flat(rsq(-hw,-hd,hw,hd,radOf(b)),[circle(4)],2.5,mat,1.5));g.add(flat(sq(-hw+T+0.2,-hd+T+0.2,hw-T-0.2,hd-T-0.2),[sq(-hw+T+1.8,-hd+T+1.8,hw-T-1.8,hd-T-1.8)],1.5,mat,0));return g;}
+  g.add(soft(rsq(-hw,-hd,hw,hd,radOf(b)),[circle(4)],2.5,mat,1.5,1.2));g.add(flat(sq(-hw+T+0.2,-hd+T+0.2,hw-T-0.2,hd-T-0.2),[sq(-hw+T+1.8,-hd+T+1.8,hw-T-1.8,hd-T-1.8)],1.5,mat,0));return g;}
 function buildBuilding(bi,gap,lightBudget){
   const b=S.buildings[bi],g=new THREE.Group(),{ys,top}=levelY(b,gap),hw=b.cols*W/2,hd=b.deep*W/2;
   g.position.set(b.x,0,b.z);g.rotation.y=-b.rot*Math.PI/2;
@@ -686,7 +717,7 @@ function buildBuilding(bi,gap,lightBudget){
   for(let l=0;l<b.levels;l++){
     /* plate (or base) under the level: one piece for the whole floor, a vent over every module */
     if(b.plates[l]){const vents=[];for(let c=0;c<b.cols;c++)for(let r=0;r<b.deep;r++)vents.push(circle(4,mx(c),-mz(r)));
-      const p=flat(rsq(-hw,-hd,hw,hd,radOf(b)),l===0?[]:vents,plateT(l),plateMat(b),ys[l]-plateT(l)-gap*0.5);g.add(p);
+      const p=soft(rsq(-hw,-hd,hw,hd,radOf(b)),l===0?[]:vents,plateT(l),plateMat(b),ys[l]-plateT(l)-gap*0.5,l===0?2.8:1.9);g.add(p);
       if(l===0){const f=flat(rsq(-hw-0.05,-hd-0.05,hw+0.05,hd+0.05,radOf(b)),[],1.2,footMat(b),ys[0]-plateT(0)-gap*0.5);g.add(f);}}
     for(let c=0;c<b.cols;c++)for(let r=0;r<b.deep;r++){const k=c+":"+r+":"+l;if(!alive(b,k))continue;const mg=new THREE.Group();mg.position.set(mx(c),ys[l],mz(r));FACES.forEach(f=>mg.add(buildWall(bi,k,f)));mg.add(cornerPieces(b,k));if(b.candles[l]&&b.plates[l])mg.traverse(o=>o.userData.lit=true);g.add(mg);
       if(b.candles[l]&&b.plates[l]){const tea=new THREE.Mesh(new THREE.CylinderGeometry(19,19,8,24),MAT.tea);tea.position.set(mx(c),ys[l]+4,mz(r));g.add(tea);
